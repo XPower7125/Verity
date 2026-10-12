@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AssemblyName>Verity</AssemblyName>
+    <RootNamespace>Verity</RootNamespace>
+    <ApplicationIcon>..\..\verity.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\shared\*.cs" LinkBase="shared" />
+    <EmbeddedResource Include="..\..\verity.ico" LogicalName="Verity.ico" />
+    <EmbeddedResource Include="..\..\verity.png" LogicalName="Verity.png" />
+  </ItemGroup>
+
+</Project>

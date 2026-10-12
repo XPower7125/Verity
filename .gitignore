@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+publish/
+publish-safe/
+
+# Local settings — never commit an API key
+*.ini
+verity.settings
+
+# Snapshot output from --snapshot
+shot-*.png
+
+# Editor noise
+.vs/
+*.user
+*.suo
