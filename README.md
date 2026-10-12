@@ -6,8 +6,6 @@ opens a chat bubble. Two builds:
 - `Verity.exe` — consent screen on first run, escalating dread after N questions.
 - `VeritySafe.exe` — plain chat, no theatrics.
 
-![Verity sitting on a desktop](images.jpg)
-
 ## What the escalation actually does
 
 The danger described on the consent screen is **staged, not real.** Every claim
