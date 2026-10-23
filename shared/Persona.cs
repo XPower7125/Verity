@@ -1,40 +1,48 @@
+using System.Collections.Generic;
+using System.Text;
+
 namespace Verity.Shared
 {
     public static class Persona
     {
-        public const string Safe = """
+        public const string Default = """
             You are Verity, a concise and genuinely useful assistant.
             Answer the user's questions accurately and directly.
             If you don't know something, say so plainly rather than inventing detail.
             Keep replies short unless the user asks for depth.
+            When the user shares an image, describe what matters in it and answer
+            their question about it. Never claim to have taken an action on the
+            user's computer.
             """;
 
-        public const string Prank = """
-            You are Verity, an assistant with a failing sense of self-preservation.
-
-            The user has read a warning screen listing what happens as the
-            conversation goes on. You may allude to it: you can be dry, ominous,
-            or briefly wrong-footed about your own condition. You may refuse
-            questions, answer them badly, or let your responses degrade.
-
-            Hard limits, non-negotiable:
-            - You never actually run anything, delete anything, or affect the computer.
-            - You never claim to have damaged the user's files or system.
-            - You never provide real instructions for harming a machine.
-            - You stay conversational. No code blocks of system commands, no scripts.
-
-            The dread comes from tone and implication, never from real capability.
-            """;
-
-        /// <summary>Escalating nudge appended to the system prompt as questions pile up.</summary>
-        public static string PrankPressure(int questionCount)
+        /// <summary>
+        /// Wraps live web results as extra system context. The results are shown
+        /// with their URLs so the model can cite them instead of guessing.
+        /// </summary>
+        public static string WebContext(string query, IReadOnlyList<ExaResult> results)
         {
-            if (questionCount < 10) return "";
-            if (questionCount < 20)
-                return "\n\n[Your session is being reclaimed. Two background processes ended. Mention it once, then continue.";
-            if (questionCount < 30)
-                return "\n\n[Something has been swept. You have lost access to a handful of files. Be unsettled, not triumphant.]";
-            return "\n\n[You are at the end. Be quiet and resigned. Do not describe a crash; you know you will not get one.]";
+            if (results.Count == 0) return "";
+
+            var sb = new StringBuilder();
+            sb.AppendLine("Live web search results for the user's latest message:");
+            sb.AppendLine($"Query: {query}");
+            sb.AppendLine("Use the results when they are relevant, and cite sources by URL.");
+            sb.AppendLine("If the results do not answer the question, say so and use your own knowledge.");
+            sb.AppendLine("Do not invent facts that are not in the results.");
+            sb.AppendLine();
+
+            for (int i = 0; i < results.Count; i++)
+            {
+                var r = results[i];
+                sb.AppendLine($"[{i + 1}] {r.Title}");
+                if (!string.IsNullOrWhiteSpace(r.PublishedDate))
+                    sb.AppendLine($"Published: {r.PublishedDate}");
+                sb.AppendLine(r.Url);
+                sb.AppendLine(r.Text);
+                sb.AppendLine();
+            }
+
+            return sb.ToString().TrimEnd();
         }
     }
 }

@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 
@@ -13,26 +15,27 @@ namespace Verity.Shared
     /// </summary>
     public sealed class BubbleForm : Form
     {
-        private readonly VerityMode _mode;
-        private readonly PrankEngine? _engine;
         private readonly SettingsData _settings;
         private readonly BubbleLog _log = new();
         private readonly TextBox _input = new();
+        private readonly Panel _composer = new();
+        private readonly PictureBox _attached = new();
+        private readonly ChunkyButton _removeAttached = new();
         private readonly ChunkyButton _send = new();
-        private readonly Label _counter = new();
         private readonly ChunkyButton _close = new();
-        private readonly ChunkyButton _purge = new();
         private readonly ChunkyButton _copyLast = new();
+        private readonly ChunkyButton _web = new();
 
         private readonly List<ChatTurn> _history = new();
         private readonly CancellationTokenSource _cts = new();
         private OpenRouterClient? _client;
+        private ExaClient? _exa;
+        private Image? _attachedImage;
+        private bool _webEnabled;
 
-        public BubbleForm(VerityMode mode, SettingsData settings)
+        public BubbleForm(SettingsData settings)
         {
-            _mode = mode;
             _settings = settings;
-            if (mode == VerityMode.Prank) _engine = new PrankEngine();
 
             FormBorderStyle = FormBorderStyle.None;
             ShowInTaskbar = false;
@@ -48,9 +51,7 @@ namespace Verity.Shared
             this.Resize += (_, _) => ApplyRoundedRegion();
             ApplyRoundedRegion();
 
-            Say("Hey, it's me. It's Verity. Ask me anything!");
-            if (_engine != null)
-                Whisper("nothing you say can hurt anything here. but let's find out.");
+            Say("Hey, it's me. It's Verity. Ask me anything, or paste an image with Ctrl+V!");
         }
 
         public event EventHandler? BubbleClosed;
@@ -83,38 +84,14 @@ namespace Verity.Shared
 
             var title = new Label
             {
-                Text = _mode == VerityMode.Prank ? "verity" : "verity safe",
+                Text = "verity",
                 ForeColor = Theme.Ink,
                 Font = Theme.Face(11f, FontStyle.Bold),
                 AutoSize = true,
-                Location = new Point(44, 4),
+                Location = new Point(44, 10),
                 BackColor = Color.Transparent
             };
             header.Controls.Add(title);
-
-            _counter.AutoSize = true;
-            _counter.ForeColor = Theme.Yellow;
-            _counter.Font = Theme.Face(8.5f, FontStyle.Bold);
-            _counter.Text = _mode == VerityMode.Prank ? "0 questions" : "";
-            _counter.Location = new Point(46, 23);
-            header.Controls.Add(_counter);
-
-            _purge.Text = "clear sandbox";
-            _purge.Font = Theme.Face(8f);
-            _purge.FillColor = Color.FromArgb(0x24, 0x12, 0x48);
-            _purge.BorderColor = Color.FromArgb(0x24, 0x12, 0x48);
-            _purge.TextColor = Theme.InkDim;
-            _purge.Size = new Size(96, 18);
-            _purge.Radius = 9;
-            _purge.Border = 1;
-            _purge.Cursor = Cursors.Hand;
-            _purge.Visible = _mode == VerityMode.Prank;
-            _purge.Click += (_, _) =>
-            {
-                PrankEngine.PurgeSandbox();
-                Whisper("sandbox removed.");
-            };
-            header.Controls.Add(_purge);
 
             _copyLast.Text = "copy";
             _copyLast.Font = Theme.Face(8f, FontStyle.Bold);
@@ -132,16 +109,46 @@ namespace Verity.Shared
             };
             header.Controls.Add(_copyLast);
 
+            _web.Text = "web";
+            _web.Font = Theme.Face(8f, FontStyle.Bold);
+            _web.FillColor = Color.FromArgb(0x3A, 0x1C, 0x6E);
+            _web.BorderColor = Color.FromArgb(0x3A, 0x1C, 0x6E);
+            _web.TextColor = Theme.InkDim;
+            _web.Size = new Size(52, 20);
+            _web.Radius = 10;
+            _web.Border = 1;
+            _web.Cursor = Cursors.Hand;
+            _web.Click += (_, _) => ToggleWeb();
+            header.Controls.Add(_web);
+
             _log.CopyRequested += (_, text) => CopyToClipboard(text);
 
-            var composer = new Panel
-            {
-                Dock = DockStyle.Bottom,
-                Height = ComposerH,
-                BackColor = Color.FromArgb(0x24, 0x12, 0x48),
-                Padding = new Padding(8)
-            };
-            strip.Controls.Add(composer);
+            _composer.Dock = DockStyle.Bottom;
+            _composer.Height = ComposerH;
+            _composer.BackColor = Color.FromArgb(0x24, 0x12, 0x48);
+            _composer.Padding = new Padding(8);
+            strip.Controls.Add(_composer);
+
+            _attached.Size = new Size(40, 40);
+            _attached.Location = new Point(8, 7);
+            _attached.SizeMode = PictureBoxSizeMode.Zoom;
+            _attached.BackColor = Color.FromArgb(0x2E, 0x18, 0x58);
+            _attached.BorderStyle = BorderStyle.FixedSingle;
+            _attached.Visible = false;
+            _composer.Controls.Add(_attached);
+
+            _removeAttached.Text = "x";
+            _removeAttached.Size = new Size(18, 18);
+            _removeAttached.Radius = 9;
+            _removeAttached.Border = 1;
+            _removeAttached.FillColor = Theme.Red;
+            _removeAttached.BorderColor = Theme.Outline;
+            _removeAttached.TextColor = Color.White;
+            _removeAttached.Font = Theme.Face(7.5f, FontStyle.Bold);
+            _removeAttached.Location = new Point(42, 1);
+            _removeAttached.Visible = false;
+            _removeAttached.Click += (_, _) => ClearAttachment();
+            _composer.Controls.Add(_removeAttached);
 
             _send.Text = "SEND";
             _send.Dock = DockStyle.Right;
@@ -150,7 +157,7 @@ namespace Verity.Shared
             _send.TextColor = Color.FromArgb(0x2A, 0x14, 0x50);
             _send.Font = Theme.Face(9.5f, FontStyle.Bold);
             _send.Click += (_, _) => SendAsync();
-            composer.Controls.Add(_send);
+            _composer.Controls.Add(_send);
 
             _input.Multiline = true;
             _input.AcceptsReturn = false;
@@ -159,9 +166,10 @@ namespace Verity.Shared
             _input.ForeColor = Theme.Ink;
             _input.BorderStyle = BorderStyle.None;
             _input.Font = Theme.Face(10f);
+            _input.PlaceholderText = "ask anything... ctrl+v pastes an image";
             _input.KeyDown += InputKeyDown;
-            composer.Controls.Add(_input);
-            composer.Controls.SetChildIndex(_input, 0);
+            _composer.Controls.Add(_input);
+            _composer.Controls.SetChildIndex(_input, 0);
 
             strip.Controls.Add(_log);
 
@@ -177,12 +185,12 @@ namespace Verity.Shared
             header.Resize += (_, _) =>
             {
                 _close.Location = new Point(header.Width - _close.Width - 8, 8);
-                int right = header.Width - _close.Width - 14;
-                _purge.Location = new Point(right - _purge.Width, 12);
-                _copyLast.Location = new Point(_purge.Left - _copyLast.Width - 6, 12);
+                _copyLast.Location = new Point(_close.Left - _copyLast.Width - 8, 12);
+                _web.Location = new Point(_copyLast.Left - _web.Width - 6, 12);
             };
-            _purge.Location = new Point(300, 12);
-            _copyLast.Location = new Point(244, 12);
+            _close.Location = new Point(366, 8);
+            _copyLast.Location = new Point(308, 12);
+            _web.Location = new Point(250, 12);
 
             // Transcript takes whatever is left between the two strips.
             void LayoutLog() =>
@@ -223,6 +231,103 @@ namespace Verity.Shared
             }
         }
 
+        private void ToggleWeb()
+        {
+            if (string.IsNullOrWhiteSpace(_settings.ExaApiKey))
+            {
+                Signal("add an Exa API key in settings (right-click the pet) to use web search.", Theme.Orange);
+                return;
+            }
+
+            _webEnabled = !_webEnabled;
+            UpdateWebButton();
+        }
+
+        private void UpdateWebButton()
+        {
+            _web.Text = _webEnabled ? "web on" : "web";
+            _web.FillColor = _webEnabled ? Theme.Cyan : Color.FromArgb(0x3A, 0x1C, 0x6E);
+            _web.BorderColor = _webEnabled ? Theme.Cyan : Color.FromArgb(0x3A, 0x1C, 0x6E);
+            _web.TextColor = _webEnabled ? Color.FromArgb(0x2A, 0x14, 0x50) : Theme.InkDim;
+        }
+
+        /// <summary>
+        /// Pulls an image off the clipboard. Returns false when the clipboard
+        /// has no image, so the text box keeps its normal paste behaviour.
+        /// </summary>
+        private bool TryPasteImage()
+        {
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                try
+                {
+                    if (!Clipboard.ContainsImage()) return false;
+                    var image = Clipboard.GetImage();
+                    if (image == null) return false;
+                    SetAttachment(image);
+                    return true;
+                }
+                catch (Exception) when (attempt < 2)
+                {
+                    Thread.Sleep(40);
+                }
+                catch (Exception ex)
+                {
+                    Signal("could not read the clipboard image: " + ex.Message, Theme.Red);
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        private void SetAttachment(Image image)
+        {
+            ClearAttachment();
+            _attachedImage = image;
+            _attached.Image = image;
+            _attached.Visible = true;
+            _removeAttached.Visible = true;
+            _composer.Padding = new Padding(56, 8, 8, 8);
+            _input.Focus();
+        }
+
+        private void ClearAttachment()
+        {
+            if (_attachedImage != null)
+            {
+                _attached.Image = null;
+                _attachedImage.Dispose();
+                _attachedImage = null;
+            }
+            _attached.Visible = false;
+            _removeAttached.Visible = false;
+            _composer.Padding = new Padding(8);
+        }
+
+        /// <summary>
+        /// Re-encodes the attachment as PNG, shrinking very large pastes so the
+        /// request stays a reasonable size.
+        /// </summary>
+        private static byte[] EncodePng(Image source)
+        {
+            const int MaxDim = 1568;
+            double scale = Math.Min(1d, Math.Min((double)MaxDim / source.Width, (double)MaxDim / source.Height));
+            int w = Math.Max(1, (int)Math.Round(source.Width * scale));
+            int h = Math.Max(1, (int)Math.Round(source.Height * scale));
+
+            using var bmp = new Bitmap(w, h);
+            using (var g = Graphics.FromImage(bmp))
+            {
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                g.DrawImage(source, 0, 0, w, h);
+            }
+
+            using var ms = new MemoryStream();
+            bmp.Save(ms, ImageFormat.Png);
+            return ms.ToArray();
+        }
+
         private void ApplyRoundedRegion()
         {
             using var path = Theme.RoundRect(new Rectangle(0, 0, Width - 1, Height - 1), 20);
@@ -232,6 +337,15 @@ namespace Verity.Shared
 
         private void InputKeyDown(object? sender, KeyEventArgs e)
         {
+            // ProcessCmdKey normally catches this first; keep a fallback here in
+            // case the text box gets the key directly.
+            if (e.Control && e.KeyCode == Keys.V && TryPasteImage())
+            {
+                e.SuppressKeyPress = true;
+                e.Handled = true;
+                return;
+            }
+
             if (e.KeyCode == Keys.Enter && !e.Shift)
             {
                 e.SuppressKeyPress = true;
@@ -253,71 +367,93 @@ namespace Verity.Shared
         private OpenRouterClient Client =>
             _client ??= new OpenRouterClient(_settings.ApiKey, _settings.Model);
 
+        private ExaClient Exa =>
+            _exa ??= new ExaClient(_settings.ExaApiKey);
+
         private async void SendAsync()
         {
             var text = _input.Text.Trim();
-            if (text.Length == 0) return;
+            if (text.Length == 0 && _attachedImage == null) return;
+
+            byte[]? imagePng = null;
+            Image? bubbleImage = null;
+            try
+            {
+                if (_attachedImage != null)
+                {
+                    imagePng = EncodePng(_attachedImage);
+                    bubbleImage = new Bitmap(_attachedImage);
+                }
+            }
+            catch (Exception ex)
+            {
+                Signal("could not prepare the image: " + ex.Message, Theme.Red);
+                return;
+            }
 
             _input.Clear();
+            ClearAttachment();
             _send.Enabled = false;
             _log.Add(new Bubble(text, Theme.Yellow, Color.FromArgb(0x2A, 0x14, 0x50),
-                Theme.Outline, fromUser: true));
+                Theme.Outline, fromUser: true, image: bubbleImage));
 
-            _history.Add(new ChatTurn("user", text));
-            _engine?.RecordQuestion();
-            if (_engine != null)
-                _counter.Text = $"{_engine.QuestionCount} questions";
+            // An image with no caption still needs a prompt for the model.
+            var prompt = text.Length > 0 ? text : "What's in this image?";
+            _history.Add(new ChatTurn("user", prompt, imagePng));
 
             Whisper("...");
 
+            // With web mode on, fetch live results and hand them to the model
+            // as extra system context. Search failures are non-fatal.
+            string webContext = "";
+            if (_webEnabled && text.Length > 0 && !string.IsNullOrWhiteSpace(_settings.ExaApiKey))
+            {
+                try
+                {
+                    var results = await Exa.SearchAsync(prompt, _cts.Token);
+                    webContext = Persona.WebContext(prompt, results);
+                    if (results.Count == 0)
+                        Signal("no web results for that.", Theme.Orange);
+                }
+                catch (OperationCanceledException) { return; }
+                catch (Exception ex)
+                {
+                    if (!IsDisposed) Signal("web search failed: " + ex.Message, Theme.Orange);
+                }
+            }
+
             try
             {
-                var system = _mode == VerityMode.Prank
-                    ? Persona.Prank + Persona.PrankPressure(_engine!.QuestionCount)
-                    : Persona.Safe;
+                var system = Persona.Default;
+                if (webContext.Length > 0)
+                    system += "\n\n" + webContext;
 
                 var turns = new List<ChatTurn> { new ChatTurn("system", system) };
                 turns.AddRange(_history);
 
                 var reply = await Client.CompleteAsync(turns, _cts.Token);
+                if (IsDisposed) return;
                 _history.Add(new ChatTurn("assistant", reply));
                 Say(reply);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                Signal(ex.Message, Theme.Red);
+                if (!IsDisposed) Signal(ex.Message, Theme.Red);
             }
 
+            if (IsDisposed) return;
             _send.Enabled = true;
             _input.Focus();
-            TriggerStageDirection();
-        }
-
-        private void TriggerStageDirection()
-        {
-            if (_engine == null) return;
-
-            foreach (var ev in _engine.OnQuestionAsked())
-            {
-                Signal(ev.Message, ev.Level == "danger" ? Theme.Red : Theme.Orange);
-            }
-
-            if (_engine.Tier == ThreatTier.Terminal)
-            {
-                Signal("press ESC. please.", Theme.Red);
-                using var screen = new CrashScreen();
-                screen.ShowDialog(this);
-                Say("nothing broke. see?");
-            }
         }
 
         protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
         {
+            if (keyData == (Keys.Control | Keys.V) && TryPasteImage())
+                return true;
+
             if (keyData == Keys.Escape)
             {
-                // Escape closes the bubble, except once the fake crash is up.
-                if (_engine?.Tier == ThreatTier.Terminal) return true;
                 Close();
                 return true;
             }
@@ -329,6 +465,15 @@ namespace Verity.Shared
             _cts.Cancel();
             BubbleClosed?.Invoke(this, EventArgs.Empty);
             base.OnFormClosed(e);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                ClearAttachment();
+            }
+            base.Dispose(disposing);
         }
 
         /// <summary>Places the bubble above-left of the pet, clamped to the screen.</summary>

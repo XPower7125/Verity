@@ -8,8 +8,8 @@ namespace Verity.Shared
     public sealed class SettingsData
     {
         public string ApiKey { get; set; } = "";
+        public string ExaApiKey { get; set; } = "";
         public string Model { get; set; } = "";
-        public bool ConsentAccepted { get; set; }
 
         // Pet position, -1 meaning "not placed yet".
         public int PetX { get; set; } = -1;
@@ -19,9 +19,9 @@ namespace Verity.Shared
     /// <summary>
     /// Reads and writes settings under HKCU\Software\Verity.
     ///
-    /// The API key is a plaintext REG_SZ value. HKCU is per-user by definition,
-    /// so the key is only readable by the account running Verity, and it never
-    /// travels in a file that might get synced or committed. That is the whole
+    /// The API keys are plaintext REG_SZ values. HKCU is per-user by definition,
+    /// so they are only readable by the account running Verity, and they never
+    /// travel in a file that might get synced or committed. That is the whole
     /// reason for preferring the registry over an ini here.
     /// </summary>
     public static class Settings
@@ -48,8 +48,8 @@ namespace Verity.Shared
             if (key == null) return data;
 
             data.ApiKey = key.GetValue("ApiKey", "") as string ?? "";
+            data.ExaApiKey = key.GetValue("ExaApiKey", "") as string ?? "";
             data.Model = key.GetValue("Model", "") as string ?? "";
-            data.ConsentAccepted = (key.GetValue("ConsentAccepted", 0) as int? ?? 0) != 0;
             data.PetX = unchecked((int)(key.GetValue("PetX", -1) as int? ?? -1));
             data.PetY = unchecked((int)(key.GetValue("PetY", -1) as int? ?? -1));
             return data;
@@ -61,8 +61,8 @@ namespace Verity.Shared
             if (key == null) return;
 
             key.SetValue("ApiKey", data.ApiKey ?? "", RegistryValueKind.String);
+            key.SetValue("ExaApiKey", data.ExaApiKey ?? "", RegistryValueKind.String);
             key.SetValue("Model", data.Model ?? "", RegistryValueKind.String);
-            key.SetValue("ConsentAccepted", data.ConsentAccepted ? 1 : 0, RegistryValueKind.DWord);
             key.SetValue("PetX", data.PetX, RegistryValueKind.DWord);
             key.SetValue("PetY", data.PetY, RegistryValueKind.DWord);
         }

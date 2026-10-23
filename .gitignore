@@ -2,7 +2,6 @@
 bin/
 obj/
 publish/
-publish-safe/
 
 # Local settings — never commit an API key
 *.ini

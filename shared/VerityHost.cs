@@ -10,14 +10,12 @@ namespace Verity.Shared
     /// </summary>
     public sealed class VerityHost : ApplicationContext
     {
-        private readonly VerityMode _mode;
         private SettingsData _settings;
         private PetForm _pet = null!;
         private BubbleForm? _bubble;
 
-        public VerityHost(VerityMode mode, SettingsData settings)
+        public VerityHost(SettingsData settings)
         {
-            _mode = mode;
             _settings = settings;
             EnsureKey();
             StartPet();
@@ -28,18 +26,13 @@ namespace Verity.Shared
         private void EnsureKey()
         {
             if (!string.IsNullOrWhiteSpace(_settings.ApiKey)) return;
-            // Prank build shows the consent screen on first run; the safe build
-            // just asks for the key.
-            var style = _mode == VerityMode.Prank && !_settings.ConsentAccepted
-                ? PromptStyle.Consent
-                : PromptStyle.Simple;
 
-            using var prompt = new KeyPromptForm(style, _settings.Model);
+            using var prompt = new KeyPromptForm(_settings.Model, _settings.ExaApiKey);
             if (prompt.ShowDialog() == DialogResult.OK)
             {
                 _settings.ApiKey = prompt.EnteredKey;
+                _settings.ExaApiKey = prompt.EnteredExaKey;
                 _settings.Model = prompt.EnteredModel;
-                _settings.ConsentAccepted = true;
                 Save();
             }
             else
@@ -50,7 +43,7 @@ namespace Verity.Shared
 
         private void StartPet()
         {
-            _pet = new PetForm(_mode, _settings, _ => Save())
+            _pet = new PetForm(_settings, _ => Save())
             {
                 Visible = false
             };
@@ -69,7 +62,7 @@ namespace Verity.Shared
                 return;
             }
 
-            _bubble = new BubbleForm(_mode, _settings);
+            _bubble = new BubbleForm(_settings);
             _bubble.BubbleClosed += (_, _) =>
             {
                 _bubble?.Dispose();
@@ -88,10 +81,11 @@ namespace Verity.Shared
 
         private void EditSettings()
         {
-            using var prompt = new KeyPromptForm(PromptStyle.Simple, _settings.Model);
+            using var prompt = new KeyPromptForm(_settings.Model, _settings.ExaApiKey);
             if (prompt.ShowDialog() == DialogResult.OK)
             {
                 _settings.ApiKey = prompt.EnteredKey;
+                _settings.ExaApiKey = prompt.EnteredExaKey;
                 _settings.Model = prompt.EnteredModel;
                 Save();
 

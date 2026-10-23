@@ -31,11 +31,30 @@ namespace Verity.Shared
             var messages = new List<object>();
             foreach (var t in history)
             {
-                messages.Add(new Dictionary<string, string>
+                if (t.ImagePng is { Length: > 0 })
                 {
-                    ["role"] = t.Role,
-                    ["content"] = t.Content
-                });
+                    // OpenRouter's multimodal shape: content is an array of parts.
+                    var parts = new List<object>();
+                    if (!string.IsNullOrEmpty(t.Content))
+                        parts.Add(new { type = "text", text = t.Content });
+                    parts.Add(new
+                    {
+                        type = "image_url",
+                        image_url = new
+                        {
+                            url = "data:image/png;base64," + Convert.ToBase64String(t.ImagePng)
+                        }
+                    });
+                    messages.Add(new { role = t.Role, content = parts });
+                }
+                else
+                {
+                    messages.Add(new Dictionary<string, string>
+                    {
+                        ["role"] = t.Role,
+                        ["content"] = t.Content
+                    });
+                }
             }
 
             var payload = new Dictionary<string, object>
@@ -85,10 +104,14 @@ namespace Verity.Shared
         public string Role { get; }
         public string Content { get; }
 
-        public ChatTurn(string role, string content)
+        /// <summary>PNG bytes for an image attached to a user turn, if any.</summary>
+        public byte[]? ImagePng { get; }
+
+        public ChatTurn(string role, string content, byte[]? imagePng = null)
         {
             Role = role;
             Content = content;
+            ImagePng = imagePng;
         }
     }
 }

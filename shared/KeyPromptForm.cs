@@ -4,28 +4,26 @@ using System.Windows.Forms;
 
 namespace Verity.Shared
 {
-    public enum PromptStyle { Consent, Simple }
-
     /// <summary>
-    /// Shared first-run dialog: Verity's avatar, the wording for the chosen style,
-    /// and API key entry. Both builds use this.
+    /// First-run dialog: Verity's avatar, a short description, and API key entry.
     /// </summary>
     public sealed class KeyPromptForm : Form
     {
         private readonly TextBox _keyBox = new();
+        private readonly TextBox _exaBox = new();
         private readonly TextBox _modelBox = new();
 
         public string EnteredKey { get; private set; } = "";
+        public string EnteredExaKey { get; private set; } = "";
         public string EnteredModel { get; private set; } = "";
 
-        public KeyPromptForm(PromptStyle style, string model)
+        public KeyPromptForm(string model, string exaApiKey = "")
         {
             EnteredModel = model;
-            var consent = style == PromptStyle.Consent;
 
             Brand.Apply(this);
-            Text = consent ? "verity" : "verity safe";
-            ClientSize = new Size(consent ? 660 : 540, consent ? 600 : 380);
+            Text = "verity";
+            ClientSize = new Size(540, 440);
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Theme.BgDeep;
             ForeColor = Theme.Ink;
@@ -57,9 +55,9 @@ namespace Verity.Shared
 
             var header = new Label
             {
-                Text = consent ? "BEFORE YOU OPEN THIS" : "VERITY SAFE",
+                Text = "VERITY",
                 Font = Theme.Face(16f, FontStyle.Bold),
-                ForeColor = consent ? Theme.Red : Theme.Cyan,
+                ForeColor = Theme.Cyan,
                 AutoSize = true,
                 Location = new Point(76, 12),
                 BackColor = Color.Transparent
@@ -68,7 +66,7 @@ namespace Verity.Shared
 
             var sub = new Label
             {
-                Text = consent ? "read the whole thing" : "just a chat window. nothing else happens.",
+                Text = "a small desktop chat. ctrl+v pastes an image.",
                 Font = Theme.Face(9.5f, FontStyle.Italic),
                 ForeColor = Theme.InkDim,
                 AutoSize = true,
@@ -77,46 +75,21 @@ namespace Verity.Shared
             };
             root.Controls.Add(sub);
 
-            int y = 80;
-
-            if (consent)
-            {
-                var bodyPanel = new ChunkyPanel
-                {
-                    Location = new Point(0, y),
-                    Size = new Size(root.ClientSize.Width - 28, 288),
-                    Radius = 18,
-                    Border = 3,
-                    FillColor = Color.FromArgb(0x28, 0x15, 0x4A),
-                    BorderColor = Theme.Outline
-                };
-                root.Controls.Add(bodyPanel);
-
-                var body = new TextBox
-                {
-                    Multiline = true,
-                    ReadOnly = true,
-                    BorderStyle = BorderStyle.None,
-                    BackColor = Color.FromArgb(0x28, 0x15, 0x4A),
-                    ForeColor = Theme.Ink,
-                    Font = Theme.Face(10f),
-                    ScrollBars = ScrollBars.Vertical,
-                    Dock = DockStyle.Fill,
-                    // Without this the ReadOnly box paints its whole buffer as
-                    // selected on first paint.
-                    HideSelection = true,
-                    TabStop = false,
-                    Text = string.Join(Environment.NewLine, PrankEngine.Disclaimer)
-                };
-                bodyPanel.Controls.Add(body);
-                y += 288 + 14;
-            }
+            int y = 88;
 
             root.Controls.Add(FieldLabel("OpenRouter API key:", y));
             _keyBox.Location = new Point(0, y + 20);
             _keyBox.Size = new Size(root.ClientSize.Width - 28, 30);
             StyleField(_keyBox, password: true);
             root.Controls.Add(_keyBox);
+            y += 58;
+
+            root.Controls.Add(FieldLabel("Exa API key (optional, for web search):", y));
+            _exaBox.Location = new Point(0, y + 20);
+            _exaBox.Size = new Size(root.ClientSize.Width - 28, 30);
+            StyleField(_exaBox, password: true);
+            _exaBox.Text = exaApiKey;
+            root.Controls.Add(_exaBox);
             y += 58;
 
             root.Controls.Add(FieldLabel("Model (blank = default):", y));
@@ -129,11 +102,11 @@ namespace Verity.Shared
 
             var go = new ChunkyButton
             {
-                Text = consent ? "OPEN IT" : "START",
+                Text = "START",
                 Size = new Size(150, 44),
                 Radius = 18,
-                FillColor = consent ? Theme.Red : Theme.Yellow,
-                TextColor = Color.White,
+                FillColor = Theme.Yellow,
+                TextColor = Color.FromArgb(0x2A, 0x14, 0x50),
                 Font = Theme.Face(11f, FontStyle.Bold)
             };
             go.Click += (_, _) => Accept();
@@ -200,6 +173,7 @@ namespace Verity.Shared
                 return;
             }
             EnteredKey = _keyBox.Text;
+            EnteredExaKey = _exaBox.Text.Trim();
             EnteredModel = _modelBox.Text;
             DialogResult = DialogResult.OK;
             Close();

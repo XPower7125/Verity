@@ -9,6 +9,7 @@ namespace Verity.Shared
     public sealed class Bubble
     {
         public string Text { get; }
+        public Image? Image { get; }
         public Color Fill { get; }
         public Color Ink { get; }
         public Color Border { get; }
@@ -16,9 +17,10 @@ namespace Verity.Shared
         public bool Italic { get; }
         public float Size { get; }
 
-        public Bubble(string text, Color fill, Color ink, Color border, bool fromUser, bool italic = false, float size = 10f)
+        public Bubble(string text, Color fill, Color ink, Color border, bool fromUser, bool italic = false, float size = 10f, Image? image = null)
         {
             Text = text;
+            Image = image;
             Fill = fill;
             Ink = ink;
             Border = border;
@@ -78,9 +80,20 @@ namespace Verity.Shared
 
         public void ClearAll()
         {
+            foreach (var b in _items) b.Image?.Dispose();
             _items.Clear();
             _scroll = 0;
             Invalidate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                foreach (var b in _items) b.Image?.Dispose();
+                _items.Clear();
+            }
+            base.Dispose(disposing);
         }
 
         protected override void OnMouseWheel(MouseEventArgs e)
@@ -118,8 +131,17 @@ namespace Verity.Shared
             public Bubble B = null!;
             public Rectangle Rect;
             public Rectangle TextRect;
+            public Rectangle ImageRect;
             public Rectangle CopyRect;
             public int Index;
+        }
+
+        private sealed class Metrics
+        {
+            public Size TextSize;
+            public Size ImageSize;
+            public int Width;
+            public int Height;
         }
 
         /// <summary>Copy glyph target, top-right inside the bubble.</summary>
@@ -127,6 +149,51 @@ namespace Verity.Shared
             new Rectangle(bubble.Right - CopySize - 5, bubble.Top + 4, CopySize, CopySize);
 
         private const int CopySize = 22;
+        private const int ImageMaxWidth = 230;
+        private const int ImageMaxHeight = 170;
+
+        /// <summary>
+        /// Measures a bubble once, shared by layout, scrolling and painting so
+        /// text and image heights cannot drift apart.
+        /// </summary>
+        private Metrics Measure(Bubble b)
+        {
+            var font = Theme.Face(b.Size, b.Italic ? FontStyle.Italic : FontStyle.Regular);
+
+            // Reserve room for the copy button *before* measuring, so the
+            // text re-wraps instead of being clipped at the new right edge.
+            int allowance = b.Copyable ? CopySize + 8 : 0;
+            int avail = Math.Max(120, Math.Min(MaxBubbleWidth, Width - 120));
+            int textAvail = Math.Max(60, avail - allowance);
+
+            var textSize = Size.Empty;
+            if (b.Text.Length > 0)
+            {
+                textSize = TextRenderer.MeasureText(b.Text, font, new Size(textAvail, 0),
+                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            }
+
+            var imageSize = Size.Empty;
+            if (b.Image != null)
+            {
+                int maxW = Math.Min(ImageMaxWidth, textAvail);
+                int maxH = ImageMaxHeight;
+                double scale = Math.Min((double)maxW / b.Image.Width, (double)maxH / b.Image.Height);
+                if (scale > 1) scale = 1;
+                imageSize = new Size(
+                    Math.Max(1, (int)Math.Round(b.Image.Width * scale)),
+                    Math.Max(1, (int)Math.Round(b.Image.Height * scale)));
+            }
+
+            int gap = imageSize.Height > 0 && textSize.Height > 0 ? 6 : 0;
+            int contentW = Math.Max(textSize.Width, imageSize.Width);
+            int contentH = imageSize.Height + gap + textSize.Height;
+            int w = Math.Min(avail, contentW + allowance) + Pad * 2;
+            int h = contentH + Pad * 2 - 4;
+            if (h < 34) h = 34;
+
+            return new Metrics { TextSize = textSize, ImageSize = imageSize, Width = w, Height = h };
+        }
 
         private List<Laid> LayoutBubbles()
         {
@@ -139,36 +206,35 @@ namespace Verity.Shared
 
             foreach (var b in _items)
             {
-                var font = Theme.Face(b.Size, b.Italic ? FontStyle.Italic : FontStyle.Regular);
-
-                // Reserve room for the copy button *before* measuring, so the
-                // text re-wraps instead of being clipped at the new right edge.
+                var m = Measure(b);
                 int allowance = b.Copyable ? CopySize + 8 : 0;
-                int avail = Math.Max(120, Math.Min(MaxBubbleWidth, Width - 120));
-                int textAvail = Math.Max(60, avail - allowance);
-
-                var sz = TextRenderer.MeasureText(b.Text, font, new Size(textAvail, 0),
-                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                int w = Math.Min(avail, sz.Width + allowance) + Pad * 2;
-                int h = sz.Height + Pad * 2 - 4;
-                if (h < 34) h = 34;
-
-                int x = b.FromUser ? Width - Pad - w : Pad;
+                int x = b.FromUser ? Width - Pad - m.Width : Pad;
                 if (b.Border == Color.Empty && b.Fill == Color.Transparent)
-                    x = Math.Max(Pad, Width / 2 - w / 2);
+                    x = Math.Max(Pad, Width / 2 - m.Width / 2);
 
-                var rect = new Rectangle(x, y, w, h);
+                int contentX = x + Pad;
+                int contentY = y + Pad - 2;
+                int textWidth = m.Width - Pad * 2 - allowance;
+                int gap = m.ImageSize.Height > 0 && m.TextSize.Height > 0 ? 6 : 0;
+                int imageX = contentX + Math.Max(0, (textWidth - m.ImageSize.Width) / 2);
+
+                var rect = new Rectangle(x, y, m.Width, m.Height);
                 laid.Add(new Laid
                 {
                     B = b,
                     Rect = rect,
-                    TextRect = new Rectangle(x + Pad, y + Pad - 2,
-                        w - Pad * 2 - allowance,
-                        h - Pad * 2 + 4),
+                    ImageRect = m.ImageSize.Height > 0
+                        ? new Rectangle(imageX, contentY, m.ImageSize.Width, m.ImageSize.Height)
+                        : Rectangle.Empty,
+                    TextRect = new Rectangle(
+                        contentX,
+                        contentY + m.ImageSize.Height + gap,
+                        textWidth,
+                        Math.Max(0, m.TextSize.Height + 4)),
                     CopyRect = CopyTarget(rect),
                     Index = laid.Count
                 });
-                y += h + Gap;
+                y += m.Height + Gap;
             }
             return laid;
         }
@@ -177,17 +243,7 @@ namespace Verity.Shared
         {
             int total = Pad * 2;
             foreach (var b in _items)
-            {
-                var font = Theme.Face(b.Size, b.Italic ? FontStyle.Italic : FontStyle.Regular);
-                // Same allowance as LayoutBubbles, or the scroll height drifts
-                // out of sync with what actually gets drawn.
-                int allowance = b.Copyable ? CopySize + 8 : 0;
-                int avail = Math.Max(120, Math.Min(MaxBubbleWidth, Width - 120));
-                int textAvail = Math.Max(60, avail - allowance);
-                var sz = TextRenderer.MeasureText(b.Text, font, new Size(textAvail, 0),
-                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
-                total += Math.Max(34, sz.Height + Pad * 2 - 4) + Gap;
-            }
+                total += Measure(b).Height + Gap;
             return Math.Max(0, total - Height);
         }
 
@@ -288,8 +344,21 @@ namespace Verity.Shared
                 }
 
                 using var f = l.B.Italic ? Theme.Face(l.B.Size, FontStyle.Italic) : Theme.Face(l.B.Size);
-                TextRenderer.DrawText(g, l.B.Text, f, l.TextRect, l.B.Ink,
-                    TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                if (l.B.Text.Length > 0)
+                {
+                    TextRenderer.DrawText(g, l.B.Text, f, l.TextRect, l.B.Ink,
+                        TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+                }
+
+                if (l.B.Image != null && l.ImageRect.Width > 0)
+                {
+                    var oldInterp = g.InterpolationMode;
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    g.DrawImage(l.B.Image, l.ImageRect);
+                    using var edge = new Pen(Color.FromArgb(80, Theme.Outline), 1);
+                    g.DrawRectangle(edge, l.ImageRect);
+                    g.InterpolationMode = oldInterp;
+                }
 
                 if (l.B.FromUser) DrawTail(g, l.Rect, l.B.Fill, l.B.Border);
                 else DrawTailLeft(g, l.Rect, l.B.Fill, l.B.Border);

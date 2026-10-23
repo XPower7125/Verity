@@ -26,7 +26,7 @@ namespace Verity
                 // Verifies the pet window paints its background with the
                 // transparency key. PrintWindow and screen capture both lie
                 // about transparency, so read the window's own pixels.
-                var pet = new PetForm(VerityMode.Prank, new SettingsData(), _ => { });
+                var pet = new PetForm(new SettingsData(), _ => { });
                 pet.Show();
                 Application.DoEvents();
 
@@ -65,8 +65,8 @@ namespace Verity
                 var loaded = Settings.Load();
                 Console.WriteLine($"path    = {Settings.RegistryPath}");
                 Console.WriteLine($"api_key = {(string.IsNullOrEmpty(loaded.ApiKey) ? "<empty>" : loaded.ApiKey.Length + " chars")}");
+                Console.WriteLine($"exa_key = {(string.IsNullOrEmpty(loaded.ExaApiKey) ? "<empty>" : loaded.ExaApiKey.Length + " chars")}");
                 Console.WriteLine($"model   = {loaded.Model}");
-                Console.WriteLine($"consent = {loaded.ConsentAccepted}");
                 Console.WriteLine($"pet     = {loaded.PetX},{loaded.PetY}");
                 return;
             }
@@ -74,11 +74,13 @@ namespace Verity
             // Env vars still win, so scripted launches can bypass the registry.
             var settings = Settings.Load();
             var key = Environment.GetEnvironmentVariable("OPENROUTER_API_KEY");
+            var exaKey = Environment.GetEnvironmentVariable("EXA_API_KEY");
             var model = Environment.GetEnvironmentVariable("VERITY_MODEL");
             if (!string.IsNullOrWhiteSpace(key)) settings.ApiKey = key.Trim();
+            if (!string.IsNullOrWhiteSpace(exaKey)) settings.ExaApiKey = exaKey.Trim();
             if (!string.IsNullOrWhiteSpace(model)) settings.Model = model.Trim();
 
-            Application.Run(new VerityHost(VerityMode.Prank, settings));
+            Application.Run(new VerityHost(settings));
         }
     }
 }

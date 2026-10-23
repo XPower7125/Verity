@@ -5,9 +5,7 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B34B71F2-97BE-490D-8D1B-999EB2B7A128}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Verity", "src\Verity\Verity.csproj", "{43B97E58-827B-4FC7-ACCB-9EDBDC57AE77}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VeritySafe", "src\VeritySafe\VeritySafe.csproj", "{68618488-9029-4999-86F3-5B92A6307D44}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Verity", "src\Verity\Verity.csproj", "{68618488-9029-4999-86F3-5B92A6307D44}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -18,17 +16,12 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{43B97E58-827B-4FC7-ACCB-9EDBDC57AE77}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{43B97E58-827B-4FC7-ACCB-9EDBDC57AE77}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{43B97E58-827B-4FC7-ACCB-9EDBDC57AE77}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{43B97E58-827B-4FC7-ACCB-9EDBDC57AE77}.Release|Any CPU.Build.0 = Release|Any CPU
 		{68618488-9029-4999-86F3-5B92A6307D44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{68618488-9029-4999-86F3-5B92A6307D44}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{68618488-9029-4999-86F3-5B92A6307D44}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{68618488-9029-4999-86F3-5B92A6307D44}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{43B97E58-827B-4FC7-ACCB-9EDBDC57AE77} = {B34B71F2-97BE-490D-8D1B-999EB2B7A128}
 		{68618488-9029-4999-86F3-5B92A6307D44} = {B34B71F2-97BE-490D-8D1B-999EB2B7A128}
 	EndGlobalSection
 EndGlobal

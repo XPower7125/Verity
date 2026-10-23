@@ -21,12 +21,11 @@ namespace Verity
             ApplicationConfiguration.Initialize();
             Form form = mode switch
             {
-                "consent" => new KeyPromptForm(PromptStyle.Consent, ""),
+                "prompt" => new KeyPromptForm(""),
                 "bubbles" => BuildBubbleTest(),
                 "pet" => BuildPetStage(),
                 "bubble" => BuildBubbleCapture(),
-                "safe" => new KeyPromptForm(PromptStyle.Simple, ""),
-                _ => new BubbleForm(VerityMode.Prank, new SettingsData())
+                _ => new BubbleForm(new SettingsData())
             };
 
             form.StartPosition = FormStartPosition.Manual;
@@ -67,7 +66,7 @@ namespace Verity
                 BackColor = Color.FromArgb(38, 74, 92),
                 StartPosition = FormStartPosition.Manual
             };
-            var pet = new PetForm(VerityMode.Prank, new SettingsData(), _ => { });
+            var pet = new PetForm(new SettingsData(), _ => { });
             stage.Shown += (_, _) =>
             {
                 pet.Show();
@@ -90,14 +89,14 @@ namespace Verity
                 StartPosition = FormStartPosition.Manual
             };
 
-            var pet = new PetForm(VerityMode.Prank, new SettingsData(), _ => { })
+            var pet = new PetForm(new SettingsData(), _ => { })
             {
                 FormBorderStyle = FormBorderStyle.None,
                 Location = new Point(470, 360),
                 TopMost = false
             };
 
-            var bubble = new BubbleForm(VerityMode.Prank, new SettingsData())
+            var bubble = new BubbleForm(new SettingsData())
             {
                 Location = new Point(180, 40)
             };
@@ -138,17 +137,30 @@ namespace Verity
                 log.Add(new Bubble("this bubble is long enough to wrap onto several lines so the " +
                     "measurement and word-break path gets exercised properly during the capture.",
                     Theme.BgLight, Theme.Ink, Theme.Outline, fromUser: false));
-                log.Add(new Bubble("sandbox ready at C:\\Users\\Someone\\AppData\\Local\\Verity\\sandbox",
-                    Color.Transparent, Theme.InkDim, Color.Transparent,
-                    fromUser: false, italic: true, size: 9.5f));
-                log.Add(new Bubble("taskkill /IM chrome.exe /F -> terminated (simulated)",
-                    Color.Transparent, Theme.Orange, Color.Transparent,
-                    fromUser: false, italic: true, size: 9.5f));
+                log.Add(new Bubble("here is a pasted screenshot, does it look right?",
+                    Theme.Yellow, Color.FromArgb(0x2A, 0x14, 0x50), Theme.Outline,
+                    fromUser: true, image: SampleImage()));
                 // Force the hover state on the first bubble so the copy
                 // affordance is visible in the capture.
                 log.BeginInvoke(new Action(() => log.HoverFirstCopyable()));
             };
             return f;
+        }
+
+        /// <summary>A throwaway bitmap standing in for a pasted clipboard image.</summary>
+        private static Bitmap SampleImage()
+        {
+            var bmp = new Bitmap(320, 180);
+            using var g = Graphics.FromImage(bmp);
+            using var bg = new System.Drawing.Drawing2D.LinearGradientBrush(
+                new Rectangle(0, 0, bmp.Width, bmp.Height), Color.FromArgb(0x24, 0x12, 0x48),
+                Color.FromArgb(0x6B, 0x3F, 0xB5), 35f);
+            g.FillRectangle(bg, 0, 0, bmp.Width, bmp.Height);
+            using var text = new Font("Consolas", 16f, FontStyle.Bold);
+            TextRenderer.DrawText(g, "pasted image", text,
+                new Rectangle(0, 0, bmp.Width, bmp.Height), Theme.Yellow,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            return bmp;
         }
     }
 }

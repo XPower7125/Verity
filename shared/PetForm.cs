@@ -11,7 +11,6 @@ namespace Verity.Shared
     /// </summary>
     public sealed class PetForm : Form
     {
-        private readonly VerityMode _mode;
         private readonly SettingsData _settings;
         private readonly Action<SettingsData> _onSettingsChanged;
         private readonly PictureBox _face = new();
@@ -23,9 +22,8 @@ namespace Verity.Shared
         private int _bobPhase;
         private int _bobBaseY;
 
-        public PetForm(VerityMode mode, SettingsData settings, Action<SettingsData> onSettingsChanged)
+        public PetForm(SettingsData settings, Action<SettingsData> onSettingsChanged)
         {
-            _mode = mode;
             _settings = settings;
             _onSettingsChanged = onSettingsChanged;
 
